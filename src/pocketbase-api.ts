@@ -2,6 +2,7 @@ import type {
   AuthAdminArgs,
   AuthUserArgs,
   Collection,
+  CollectionField,
   CreateCollectionArgs,
   CreateRecordArgs,
   HealthResponse,
@@ -20,6 +21,11 @@ interface PocketBaseAuthResponse {
   record?: Record<string, unknown>;
   [key: string]: unknown;
 }
+
+const DEFAULT_COLLECTION_SYSTEM_FIELDS: ReadonlyArray<CollectionField> = [
+  { name: 'created', type: 'autodate', onCreate: true, onUpdate: false, system: true },
+  { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true, system: true },
+];
 
 export class PocketBaseApi {
   constructor(private readonly http: HttpClient) {}
@@ -133,11 +139,30 @@ export class PocketBaseApi {
     return this.http.request<Collection>('GET', `/api/collections/${encodeURIComponent(collection)}`);
   }
 
+  private getCreateCollectionFields(data: CreateCollectionArgs): CollectionField[] {
+    const type = data.type || 'base';
+    const fields = [...(data.fields || [])];
+
+    if (type === 'view') {
+      return fields;
+    }
+
+    const existingFieldNames = new Set(fields.map((field) => field.name));
+
+    for (const field of DEFAULT_COLLECTION_SYSTEM_FIELDS) {
+      if (!existingFieldNames.has(field.name)) {
+        fields.push({ ...field });
+      }
+    }
+
+    return fields;
+  }
+
   async createCollection(data: CreateCollectionArgs): Promise<Collection> {
     const payload: Record<string, unknown> = {
       name: data.name,
       type: data.type || 'base',
-      fields: data.fields || [],
+      fields: this.getCreateCollectionFields(data),
     };
 
     for (const rule of ['listRule', 'viewRule', 'createRule', 'updateRule', 'deleteRule'] as const) {

@@ -118,7 +118,7 @@ export const TOOL_DEFINITIONS = [
     {
       name: 'create_collection',
       description:
-        'Create a new collection. Call get_field_schema_reference first to see correct field syntax.',
+        'Create a new collection. Call get_field_schema_reference first to see correct field syntax. For base/auth collections, created and updated autodate system fields are auto-added unless you provide them.',
       inputSchema: {
         type: 'object',
         properties: {

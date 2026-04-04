@@ -230,6 +230,7 @@ test('supports collection tools happy path', async () => {
     listRule: '@request.auth.id != ""',
   });
   const removed = await server.callTool('delete_collection', { collection: 'posts' });
+  const createCall = calls.find((call) => call.method === 'POST' && call.endpoint === '/api/collections');
 
   assert.equal(list.items[0].name, 'posts');
   assert.equal(list.items[0].fields, 1);
@@ -239,6 +240,47 @@ test('supports collection tools happy path', async () => {
   assert.equal(rules.collection, 'posts');
   assert.equal(removed.message, 'Collection deleted successfully');
   assert.equal(calls.some((call) => call.method === 'PATCH' && call.endpoint === '/api/collections/posts'), true);
+  assert.deepEqual(createCall.data.fields, [
+    { name: 'title', type: 'text' },
+    { name: 'created', type: 'autodate', onCreate: true, onUpdate: false, system: true },
+    { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true, system: true },
+  ]);
+});
+
+test('does not duplicate caller-provided created or updated fields', async () => {
+  const { server, calls } = createServerWithMockRequest();
+
+  await server.callTool('create_collection', {
+    name: 'posts',
+    fields: [
+      { name: 'title', type: 'text' },
+      { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
+      { name: 'updated', type: 'autodate', onCreate: false, onUpdate: true, hidden: true },
+    ],
+  });
+
+  const createCall = calls.find((call) => call.method === 'POST' && call.endpoint === '/api/collections');
+
+  assert.deepEqual(createCall.data.fields, [
+    { name: 'title', type: 'text' },
+    { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
+    { name: 'updated', type: 'autodate', onCreate: false, onUpdate: true, hidden: true },
+  ]);
+});
+
+test('does not inject created or updated fields into view collections', async () => {
+  const { server, calls } = createServerWithMockRequest();
+
+  await server.callTool('create_collection', {
+    name: 'recent_posts',
+    type: 'view',
+    fields: [{ name: 'title', type: 'text' }],
+  });
+
+  const createCall = calls.find((call) => call.method === 'POST' && call.endpoint === '/api/collections');
+
+  assert.deepEqual(createCall.data.fields, [{ name: 'title', type: 'text' }]);
+  assert.equal(createCall.data.type, 'view');
 });
 
 test('validates collection tool arguments', async () => {

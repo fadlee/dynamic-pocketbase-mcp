@@ -95,7 +95,7 @@ If those steps succeed, your AI can now manage schema and data through this MCP 
 ### Collections
 - `list_collections` - List all collections
 - `view_collection` - View collection by name or ID
-- `create_collection` - Create new collection
+- `create_collection` - Create new collection (auto-adds `created` and `updated` autodate fields for base/auth collections unless provided)
 - `update_collection` - Update collection schema/settings
 - `delete_collection` - Delete collection
 - `update_collection_rules` - Update access control rules

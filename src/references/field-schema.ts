@@ -1,6 +1,9 @@
 export function getFieldSchemaReference() {
   return {
     description: 'PocketBase Collection Field Schema Reference',
+    notes: [
+      'create_collection automatically adds created and updated autodate system fields for base and auth collections unless you provide them explicitly.',
+    ],
     common_properties: {
       name: 'string (required) - Unique field name',
       type: 'string (required) - Field type',
@@ -145,7 +148,8 @@ export function getFieldSchemaReference() {
         { name: 'status', type: 'select', values: ['draft', 'published'], maxSelect: 1 },
         { name: 'author', type: 'relation', collectionId: 'users_id', required: true },
         { name: 'images', type: 'file', maxSelect: 5, mimeTypes: ['image/jpeg', 'image/png'] },
-        { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
+        { name: 'created', type: 'autodate', onCreate: true, onUpdate: false, system: true },
+        { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true, system: true },
       ],
     },
   };
