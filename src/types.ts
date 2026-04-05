@@ -95,6 +95,11 @@ export interface ListRecordsArgs {
   fields?: string;
 }
 
+export interface ListCollectionsArgs {
+  page?: number;
+  perPage?: number;
+}
+
 export interface ViewRecordArgs {
   collection: string;
   id: string;

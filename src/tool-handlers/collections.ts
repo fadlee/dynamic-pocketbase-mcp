@@ -5,7 +5,7 @@ export function createCollectionToolHandlers(context: ToolHandlerContext): ToolH
   const { api } = context;
 
   return {
-    list_collections: async () => api.listCollections(),
+    list_collections: async (args) => api.listCollections(args),
     view_collection: async (args) => api.viewCollection(parseCollectionName(args)),
     create_collection: async (args) => api.createCollection(parseCreateCollectionArgs(args)),
     update_collection: async (args) => {

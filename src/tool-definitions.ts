@@ -84,10 +84,19 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'list_collections',
-      description: 'List all collections',
+      description: 'List all collections with optional pagination',
       inputSchema: {
         type: 'object',
-        properties: {},
+        properties: {
+          page: {
+            type: 'integer',
+            description: 'Page number (default: 1)',
+          },
+          perPage: {
+            type: 'integer',
+            description: 'Collections per page (default: 30, max: 500)',
+          },
+        },
         additionalProperties: false,
       },
     },

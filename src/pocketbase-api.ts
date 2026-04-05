@@ -6,6 +6,7 @@ import type {
   CreateCollectionArgs,
   CreateRecordArgs,
   HealthResponse,
+  ListCollectionsArgs,
   ListRecordsArgs,
   ListResult,
   PBRecord,
@@ -117,8 +118,22 @@ export class PocketBaseApi {
     return this.http.request<HealthResponse>('GET', '/api/health');
   }
 
-  async listCollections() {
-    const result = await this.http.request<ListResult<Collection>>('GET', '/api/collections');
+  async listCollections(args?: ListCollectionsArgs) {
+    const query: Record<string, number> = {};
+
+    if (args?.page !== undefined && args.page !== null) {
+      query.page = args.page;
+    }
+    if (args?.perPage !== undefined && args.perPage !== null) {
+      query.perPage = args.perPage;
+    }
+
+    const result = await this.http.request<ListResult<Collection>>(
+      'GET',
+      '/api/collections',
+      null,
+      query
+    );
 
     return {
       page: result.page,
