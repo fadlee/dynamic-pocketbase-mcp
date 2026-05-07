@@ -1,6 +1,6 @@
 {
   "name": "dynamic-pocketbase-mcp",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Dynamic PocketBase MCP server for AI clients",
   "type": "module",
   "bin": {
