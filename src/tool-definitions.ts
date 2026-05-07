@@ -1,5 +1,58 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
+const COLLECTION_FIELD_SCHEMA = {
+  type: 'object',
+  description: 'PocketBase collection field definition object',
+  properties: {
+    name: { type: 'string', description: 'Unique field name' },
+    type: { type: 'string', description: 'PocketBase field type' },
+    required: { type: 'boolean', description: 'Field must have a value' },
+    hidden: { type: 'boolean', description: 'Hide from API response' },
+    presentable: { type: 'boolean', description: 'Show in relation preview labels' },
+    system: { type: 'boolean', description: 'Prevents renaming/deletion' },
+    min: { type: 'number', description: 'Minimum text length or numeric value' },
+    max: { type: 'number', description: 'Maximum text length or numeric value' },
+    pattern: { type: 'string', description: 'Regex pattern validation for text fields' },
+    autogeneratePattern: { type: 'string', description: 'Auto-generate pattern for text fields' },
+    onlyInt: { type: 'boolean', description: 'Allow only integers for number fields' },
+    noDecimal: { type: 'boolean', description: 'Disallow decimal places for number fields' },
+    exceptDomains: {
+      type: 'array',
+      description: 'Blocked email domains',
+      items: { type: 'string' },
+    },
+    onlyDomains: {
+      type: 'array',
+      description: 'Allowed email domains',
+      items: { type: 'string' },
+    },
+    onCreate: { type: 'boolean', description: 'Auto-set autodate field on record create' },
+    onUpdate: { type: 'boolean', description: 'Auto-set autodate field on record update' },
+    values: {
+      type: 'array',
+      description: 'Allowed select values',
+      items: { type: 'string' },
+    },
+    maxSelect: { type: 'number', description: 'Maximum selected options, files, or relations' },
+    maxSize: { type: 'number', description: 'Maximum file size in bytes' },
+    mimeTypes: {
+      type: 'array',
+      description: 'Allowed file MIME types',
+      items: { type: 'string' },
+    },
+    thumbs: {
+      type: 'array',
+      description: 'Generated thumbnail sizes',
+      items: { type: 'string' },
+    },
+    protected: { type: 'boolean', description: 'Require auth to access uploaded files' },
+    collectionId: { type: 'string', description: 'Target collection ID for relation fields' },
+    cascadeDelete: { type: 'boolean', description: 'Delete records when related record is deleted' },
+  },
+  required: ['name', 'type'],
+  additionalProperties: true,
+} as const;
+
 export const TOOL_DEFINITIONS = [
     {
       name: 'health',
@@ -143,10 +196,7 @@ export const TOOL_DEFINITIONS = [
           fields: {
             type: 'array',
             description: 'Array of field definitions',
-            items: {
-              type: 'object',
-              description: 'Field definition object',
-            },
+            items: COLLECTION_FIELD_SCHEMA,
           },
           listRule: {
             type: ['string', 'null'],
@@ -195,15 +245,13 @@ export const TOOL_DEFINITIONS = [
             type: 'object',
             description:
               'Collection data to update. For schema changes, include fields as a full array (existing + new/removed). If omitted, you may pass update properties directly at the top-level (besides collection).',
+            additionalProperties: true,
           },
           fields: {
             type: 'array',
             description:
               'Optional shorthand to update the collection fields (schema). Must be the full fields array (existing + changes).',
-            items: {
-              type: 'object',
-              description: 'Field definition object',
-            },
+            items: COLLECTION_FIELD_SCHEMA,
           },
           indexes: {
             type: 'array',

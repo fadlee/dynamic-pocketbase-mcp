@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PocketBaseMCPServer } from '../dist/server.js';
+import { getToolDefinitions } from '../dist/tool-definitions.js';
 
 function makeCollection(name, extra = {}) {
   return {
@@ -245,6 +246,43 @@ test('supports collection tools happy path', async () => {
     { name: 'created', type: 'autodate', onCreate: true, onUpdate: false, system: true },
     { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true, system: true },
   ]);
+});
+
+test('collection schema tools expose concrete field object parameters', () => {
+  const tools = getToolDefinitions();
+  const createCollection = tools.find((tool) => tool.name === 'create_collection');
+  const updateCollection = tools.find((tool) => tool.name === 'update_collection');
+
+  assert.ok(createCollection);
+  assert.ok(updateCollection);
+  assert.deepEqual(Object.keys(createCollection.inputSchema.properties.fields.items.properties), [
+    'name',
+    'type',
+    'required',
+    'hidden',
+    'presentable',
+    'system',
+    'min',
+    'max',
+    'pattern',
+    'autogeneratePattern',
+    'onlyInt',
+    'noDecimal',
+    'exceptDomains',
+    'onlyDomains',
+    'onCreate',
+    'onUpdate',
+    'values',
+    'maxSelect',
+    'maxSize',
+    'mimeTypes',
+    'thumbs',
+    'protected',
+    'collectionId',
+    'cascadeDelete',
+  ]);
+  assert.deepEqual(updateCollection.inputSchema.properties.fields.items.properties, createCollection.inputSchema.properties.fields.items.properties);
+  assert.equal(updateCollection.inputSchema.properties.data.additionalProperties, true);
 });
 
 test('does not duplicate caller-provided created or updated fields', async () => {

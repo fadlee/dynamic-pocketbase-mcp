@@ -4,7 +4,7 @@
   "description": "Dynamic PocketBase MCP server for AI clients",
   "type": "module",
   "bin": {
-    "dynamic-pocketbase-mcp": "./dist/index.js"
+    "dynamic-pocketbase-mcp": "dist/index.js"
   },
   "exports": "./dist/index.js",
   "main": "./dist/index.js",
