@@ -16,6 +16,13 @@ const TEST_COLLECTION_PREFIX = 'mcp_live_notes';
 const AUTH_COLLECTION_PREFIX = 'mcp_live_users';
 const REL_COLLECTION_PREFIX = 'mcp_live_comments';
 const RECORD_TITLE = 'live note';
+const VERBOSE = process.env.POCKETBASE_LIVE_VERBOSE === '1';
+
+function logStep(message) {
+  if (VERBOSE) {
+    console.log(`[live] ${message}`);
+  }
+}
 
 async function getFreePort() {
   const server = createServer();
@@ -69,6 +76,8 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
   const authCollection = `${AUTH_COLLECTION_PREFIX}_${suffix}`;
   const relationCollection = `${REL_COLLECTION_PREFIX}_${suffix}`;
   const wrapperArgs = ['-y', '@fadlee/pocketbase-bin'];
+  logStep(`temp dir: ${dataDir}`);
+  logStep(`collections: ${testCollection}, ${relationCollection}, ${authCollection}`);
 
   execFileSync('npx', [...wrapperArgs, '--help'], {
     cwd: dataDir,
@@ -95,6 +104,7 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
 
   try {
     await waitForHealth(baseUrl, pocketbaseProcess);
+    logStep(`PocketBase ready at ${baseUrl}`);
 
     const server = new PocketBaseMCPServer(baseUrl);
 
@@ -105,6 +115,7 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
       identity: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
     });
+    logStep('authenticated as superuser');
     assert.equal(auth.authenticated, true);
 
     await server.callTool('create_collection', {
@@ -113,6 +124,7 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
       listRule: null,
     });
 
+    logStep('created base collection');
     const viewedCollection = await server.callTool('view_collection', { collection: testCollection });
     assert.equal(viewedCollection.name, testCollection);
 
@@ -125,12 +137,14 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     });
     assert.equal(updatedCollection.name, testCollection);
     assert.equal(updatedCollection.fields.some((field) => field.name === 'status'), true);
+    logStep('patched base collection schema');
 
     const createdRecord = await server.callTool('create_record', {
       collection: testCollection,
       data: { title: RECORD_TITLE, status: 'draft' },
     });
     assert.equal(createdRecord.title, RECORD_TITLE);
+    logStep(`created base record ${createdRecord.id}`);
 
     const viewedRecord = await server.callTool('view_record', {
       collection: testCollection,
@@ -151,9 +165,11 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     });
     assert.equal(records.items.length, 1);
     assert.equal(records.items[0].status, 'published');
+    logStep('verified record update and filtered list');
 
     const resource = await server.readResource(`pocketbase://collection/${testCollection}`);
     assert.match(resource.text, new RegExp(testCollection));
+    logStep('validated collection resource read');
 
     await server.callTool('create_collection', {
       name: relationCollection,
@@ -176,6 +192,7 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
       },
     });
     assert.equal(relationRecord.post, createdRecord.id);
+    logStep(`created relation record ${relationRecord.id}`);
 
     const expandedRecord = await server.callTool('view_record', {
       collection: relationCollection,
@@ -192,18 +209,21 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     });
     assert.equal(expandedList.items.length, 1);
     assert.equal(expandedList.items[0].expand.post.id, createdRecord.id);
+    logStep('verified relation expand on view and list');
 
     const deletedRelationRecord = await server.callTool('delete_record', {
       collection: relationCollection,
       id: relationRecord.id,
     });
     assert.equal(deletedRelationRecord.message, 'Record deleted successfully');
+    logStep('deleted relation record');
 
     const deletedRecord = await server.callTool('delete_record', {
       collection: testCollection,
       id: createdRecord.id,
     });
     assert.equal(deletedRecord.message, 'Record deleted successfully');
+    logStep('deleted base record');
 
     await server.callTool('create_collection', {
       name: authCollection,
@@ -221,6 +241,7 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
         nickname: 'live-user',
       },
     });
+    logStep(`created auth record ${authRecord.id}`);
     assert.equal(authRecord.email.includes('@example.com'), true);
 
     const userAuth = await server.callTool('auth_user', {
@@ -230,12 +251,14 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     });
     assert.equal(userAuth.authenticated, true);
     assert.equal(userAuth.collection, authCollection);
+    logStep('authenticated as auth collection user');
 
     const authStatus = await server.callTool('get_auth_status', {});
     assert.equal(authStatus.authenticated, true);
 
     const logout = await server.callTool('logout', {});
     assert.equal(logout.authenticated, false);
+    logStep('verified auth status and logout');
 
     const adminAuthAgain = await server.callTool('auth_admin', {
       identity: ADMIN_EMAIL,
@@ -251,6 +274,7 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
 
     const deletedAuthCollection = await server.callTool('delete_collection', { collection: authCollection });
     assert.equal(deletedAuthCollection.message, 'Collection deleted successfully');
+    logStep('cleaned up all live collections');
   } finally {
     if (pocketbaseProcess.exitCode === null) {
       pocketbaseProcess.kill('SIGTERM');
