@@ -122,6 +122,10 @@ bun run typecheck
 # Run tests (builds dist first)
 bun run test
 
+# Run live integration test against a real PocketBase instance.
+# This uses @fadlee/pocketbase-bin to provision PocketBase automatically.
+bun run test:live
+
 # Run all checks (typecheck + tests)
 bun run check
 
@@ -137,6 +141,13 @@ bun run build
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `POCKETBASE_URL` | No | PocketBase server URL (default: `http://localhost:8090`) |
+
+Additional live-test environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `POCKETBASE_LIVE_ADMIN_EMAIL` | No | Admin email for live test bootstrap (default: `admin@example.com`) |
+| `POCKETBASE_LIVE_ADMIN_PASSWORD` | No | Admin password for live test bootstrap (default: `supersecret123`) |
 
 ## License
 
