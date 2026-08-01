@@ -17,7 +17,7 @@ Many PocketBase MCP servers are static: they hardcode collection-specific behavi
 - Collection lifecycle operations (create, update, delete, inspect)
 - Record CRUD with filters, sorting, pagination, and field selection
 - Session-based auth via tools (`auth_admin`, `auth_user`, `get_auth_status`, `logout`)
-- Built-in references for field schema and rules syntax
+- Built-in references for field schema, schema patch examples, and rules syntax
 
 ## Installation
 
@@ -83,7 +83,7 @@ If those steps succeed, your AI can now manage schema and data through this MCP 
 ### Health and references
 - `health` - Check PocketBase server health status
 - `set_base_url` - Update PocketBase URL for current MCP session and clear auth token
-- `get_field_schema_reference` - Get field types documentation
+- `get_field_schema_reference` - Get field types documentation plus create/update schema examples
 - `get_rules_reference` - Get API rules syntax reference
 
 ### Authentication
@@ -96,7 +96,7 @@ If those steps succeed, your AI can now manage schema and data through this MCP 
 - `list_collections` - List all collections
 - `view_collection` - View collection by name or ID
 - `create_collection` - Create new collection (auto-adds `created` and `updated` autodate fields for base/auth collections unless provided)
-- `update_collection` - Update collection schema/settings
+- `update_collection` - Update collection schema/settings (partial object updates allowed; use `fieldUpdates`/`removeFields` for MCP-side schema merging, or `fields` for direct full-array replacement; see `get_field_schema_reference` examples)
 - `delete_collection` - Delete collection
 - `update_collection_rules` - Update access control rules
 

@@ -17,7 +17,6 @@ const COLLECTION_FIELD_SCHEMA = {
     onlyInt: { type: 'boolean', description: 'Allow only integers for number fields' },
     noDecimal: { type: 'boolean', description: 'Disallow decimal places for number fields' },
     exceptDomains: {
-      type: 'array',
       description: 'Blocked email domains',
       items: { type: 'string' },
     },
@@ -170,7 +169,7 @@ export const TOOL_DEFINITIONS = [
     {
       name: 'get_field_schema_reference',
       description:
-        'Get PocketBase collection field schema reference. Call this before create_collection to see correct field syntax for all field types.',
+        'Get PocketBase collection field schema reference, including create examples and update_collection field patch examples. Call this before create_collection or schema updates to see correct field syntax.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -233,7 +232,7 @@ export const TOOL_DEFINITIONS = [
     {
       name: 'update_collection',
       description:
-        'Update an existing collection. For schema changes (add/remove fields) you must send a valid payload. If updating fields, provide the full fields array (existing fields + your changes), not just the new field.',
+        'Update an existing collection. Partial updates are allowed for collection properties. You may either send a full fields array, or let the MCP server merge schema patches via fieldUpdates/removeFields before sending the final fields array to PocketBase. Call get_field_schema_reference for concrete patch examples.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -244,14 +243,32 @@ export const TOOL_DEFINITIONS = [
           data: {
             type: 'object',
             description:
-              'Collection data to update. For schema changes, include fields as a full array (existing + new/removed). If omitted, you may pass update properties directly at the top-level (besides collection).',
+              'Collection data to update. You may send only the properties you want to change. If you also use fieldUpdates/removeFields, MCP will fetch the current collection, merge the field changes, and send the final full fields array to PocketBase.',
             additionalProperties: true,
           },
           fields: {
             type: 'array',
             description:
-              'Optional shorthand to update the collection fields (schema). Must be the full fields array (existing + changes).',
+              'Optional shorthand to replace the collection fields (schema) directly. This is the full final fields array.',
             items: COLLECTION_FIELD_SCHEMA,
+          },
+          fieldUpdates: {
+            type: 'array',
+            description:
+              'Optional MCP-side partial field patches. Existing fields are merged by name. New fields must include at least name and type.',
+            items: {
+              ...COLLECTION_FIELD_SCHEMA,
+              required: ['name'],
+            },
+          },
+          removeFields: {
+            type: 'array',
+            description:
+              'Optional field names to remove. MCP removes them from the current schema before sending the final full fields array to PocketBase.',
+            items: {
+              type: 'string',
+              description: 'Field name to remove',
+            },
           },
           indexes: {
             type: 'array',

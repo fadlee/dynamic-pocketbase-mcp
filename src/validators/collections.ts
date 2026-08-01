@@ -1,4 +1,4 @@
-import type { CreateCollectionArgs, UpdateRulesArgs } from '../types.js';
+import type { CollectionFieldPatch, CreateCollectionArgs, UpdateRulesArgs } from '../types.js';
 import { ValidationError } from '../errors.js';
 import {
   assertObjectArray,
@@ -59,16 +59,66 @@ export function parseCreateCollectionArgs(args: UnknownObject): CreateCollection
 export function parseUpdateCollectionArgs(args: UnknownObject): {
   collection: string;
   data: UnknownObject;
+  fieldUpdates?: CollectionFieldPatch[];
+  removeFields?: string[];
 } {
   const collection = parseCollectionName(args);
+  let fieldUpdates: CollectionFieldPatch[] | undefined;
+  let removeFields: string[] | undefined;
+
+  if (args.fieldUpdates !== undefined) {
+    assertObjectArray(args.fieldUpdates, 'fieldUpdates');
+
+    const seenFieldUpdates = new Set<string>();
+
+    fieldUpdates = args.fieldUpdates.map((item, index) => {
+      const name = requireString(item.name, `fieldUpdates[${index}].name`);
+
+      if (seenFieldUpdates.has(name)) {
+        throw new ValidationError(`Duplicate field update for field: ${name}`);
+      }
+
+      seenFieldUpdates.add(name);
+
+      if ('type' in item && item.type !== undefined && typeof item.type !== 'string') {
+        throw new ValidationError(`Invalid parameter: fieldUpdates[${index}].type must be a string`);
+      }
+
+      return { ...item, name };
+    });
+  }
+
+  if (args.removeFields !== undefined) {
+    assertStringArray(args.removeFields, 'removeFields');
+
+    const seenRemoveFields = new Set<string>();
+
+    removeFields = args.removeFields.map((item, index) => {
+      const name = requireString(item, `removeFields[${index}]`);
+
+      if (seenRemoveFields.has(name)) {
+        throw new ValidationError(`Duplicate removeFields entry for field: ${name}`);
+      }
+
+      seenRemoveFields.add(name);
+      return name;
+    });
+  }
+
   let data: UnknownObject;
 
   if (args.data === undefined) {
     data = { ...args };
     delete data.collection;
+    delete data.fieldUpdates;
+    delete data.removeFields;
   } else {
     const nestedData = requireObject(args.data, 'data');
     data = { ...nestedData };
+
+    if ('fieldUpdates' in data || 'removeFields' in data) {
+      throw new ValidationError('fieldUpdates and removeFields must be top-level parameters, not nested under data');
+    }
 
     for (const key of ['fields', 'indexes', ...RULE_KEYS] as const) {
       if (key in args && !(key in data)) {
@@ -77,9 +127,23 @@ export function parseUpdateCollectionArgs(args: UnknownObject): {
     }
   }
 
-  if (Object.keys(data).length === 0) {
+  if (
+    'fields' in data &&
+    data.fields !== undefined &&
+    ((fieldUpdates && fieldUpdates.length > 0) || (removeFields && removeFields.length > 0))
+  ) {
     throw new ValidationError(
-      'Missing update payload. Provide update properties under data or at top-level (besides collection). For schema changes, send fields as the full fields array (existing fields + your changes).'
+      'Cannot combine fields with fieldUpdates/removeFields. Use either a full fields array or partial field patch inputs.'
+    );
+  }
+
+  if (
+    Object.keys(data).length === 0 &&
+    (!fieldUpdates || fieldUpdates.length === 0) &&
+    (!removeFields || removeFields.length === 0)
+  ) {
+    throw new ValidationError(
+      'Missing update payload. Provide update properties under data or at top-level (besides collection). For schema changes, send fields as the full fields array or use fieldUpdates/removeFields for MCP-side field merging.'
     );
   }
 
@@ -97,7 +161,7 @@ export function parseUpdateCollectionArgs(args: UnknownObject): {
     }
   }
 
-  return { collection, data };
+  return { collection, data, fieldUpdates, removeFields };
 }
 
 export function parseUpdateRulesArgs(args: UnknownObject): UpdateRulesArgs {

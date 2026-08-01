@@ -148,6 +148,13 @@ test('supports meta tools happy path', async () => {
   assert.equal(updatedBase.baseUrl, 'https://pb.example.com');
   assert.equal(status.baseUrl, 'https://pb.example.com');
   assert.equal(fieldRef.description, 'PocketBase Collection Field Schema Reference');
+  assert.deepEqual(Object.keys(fieldRef.update_examples), [
+    'update_existing_field',
+    'add_new_field',
+    'remove_field',
+    'update_select_options',
+    'update_relation_field',
+  ]);
   assert.equal(rulesRef.description, 'PocketBase API Rules and Filters Reference');
 });
 
@@ -285,6 +292,31 @@ test('collection schema tools expose concrete field object parameters', () => {
   assert.equal(updateCollection.inputSchema.properties.data.additionalProperties, true);
 });
 
+test('update_collection schema documents MCP field patch support', () => {
+  const tools = getToolDefinitions();
+  const updateCollection = tools.find((tool) => tool.name === 'update_collection');
+
+  assert.ok(updateCollection);
+  assert.match(updateCollection.description, /fieldUpdates\/removeFields/);
+  assert.match(
+    updateCollection.inputSchema.properties.data.description,
+    /MCP will fetch the current collection, merge the field changes/
+  );
+  assert.match(updateCollection.inputSchema.properties.fields.description, /full final fields array/);
+  assert.equal(updateCollection.inputSchema.properties.fieldUpdates.items.required[0], 'name');
+});
+
+test('field schema reference includes update_collection patch examples', () => {
+  const tools = getToolDefinitions();
+  const fieldReferenceTool = tools.find((tool) => tool.name === 'get_field_schema_reference');
+  const updateCollection = tools.find((tool) => tool.name === 'update_collection');
+
+  assert.ok(fieldReferenceTool);
+  assert.ok(updateCollection);
+  assert.match(fieldReferenceTool.description, /update_collection field patch examples/);
+  assert.match(updateCollection.description, /Call get_field_schema_reference for concrete patch examples/);
+});
+
 test('does not duplicate caller-provided created or updated fields', async () => {
   const { server, calls } = createServerWithMockRequest();
 
@@ -319,6 +351,65 @@ test('does not inject created or updated fields into view collections', async ()
 
   assert.deepEqual(createCall.data.fields, [{ name: 'title', type: 'text' }]);
   assert.equal(createCall.data.type, 'view');
+});
+
+test('merges partial field updates before calling PocketBase', async () => {
+  const { server, calls } = createServerWithMockRequest();
+
+  await server.callTool('update_collection', {
+    collection: 'posts',
+    fieldUpdates: [
+      { name: 'title', required: true },
+      { name: 'status', type: 'select', values: ['draft'] },
+    ],
+    removeFields: ['obsolete'],
+    listRule: '',
+  });
+
+  const patchCall = calls.find((call) => call.method === 'PATCH' && call.endpoint === '/api/collections/posts');
+
+  assert.deepEqual(patchCall.data, {
+    listRule: '',
+    fields: [
+      { name: 'title', type: 'text', required: true },
+      { name: 'status', type: 'select', values: ['draft'] },
+    ],
+  });
+});
+
+test('requires type when adding a new field via fieldUpdates', async () => {
+  const { server } = createServerWithMockRequest();
+
+  await assert.rejects(
+    () => server.callTool('update_collection', { collection: 'posts', fieldUpdates: [{ name: 'status' }] }),
+    /Missing type for new field: status/
+  );
+});
+
+test('validates field patch inputs', async () => {
+  const { server } = createServerWithMockRequest();
+
+  await assert.rejects(
+    () =>
+      server.callTool('update_collection', {
+        collection: 'posts',
+        fields: [{ name: 'title', type: 'text' }],
+        fieldUpdates: [{ name: 'title', required: true }],
+      }),
+    /Cannot combine fields with fieldUpdates\/removeFields/
+  );
+  await assert.rejects(
+    () =>
+      server.callTool('update_collection', {
+        collection: 'posts',
+        fieldUpdates: [{ name: 'title' }, { name: 'title' }],
+      }),
+    /Duplicate field update for field: title/
+  );
+  await assert.rejects(
+    () => server.callTool('update_collection', { collection: 'posts', removeFields: ['title', 'title'] }),
+    /Duplicate removeFields entry for field: title/
+  );
 });
 
 test('validates collection tool arguments', async () => {

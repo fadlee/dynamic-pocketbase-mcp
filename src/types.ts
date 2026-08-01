@@ -13,6 +13,11 @@ export interface CollectionField {
   [key: string]: unknown;
 }
 
+export interface CollectionFieldPatch extends Partial<CollectionField> {
+  name: string;
+  type?: string;
+}
+
 export interface Collection {
   id: string;
   name: string;
@@ -68,6 +73,8 @@ export interface UpdateCollectionArgs {
   collection: string;
   data?: Record<string, unknown>;
   fields?: CollectionField[];
+  fieldUpdates?: CollectionFieldPatch[];
+  removeFields?: string[];
   indexes?: string[];
   listRule?: string | null;
   viewRule?: string | null;

@@ -3,6 +3,7 @@ export function getFieldSchemaReference() {
     description: 'PocketBase Collection Field Schema Reference',
     notes: [
       'create_collection automatically adds created and updated autodate system fields for base and auth collections unless you provide them explicitly.',
+      'update_collection supports MCP-side schema patching with fieldUpdates/removeFields. MCP will fetch the current collection, merge the changes, and send the final full fields array to PocketBase.',
     ],
     common_properties: {
       name: 'string (required) - Unique field name',
@@ -151,6 +152,45 @@ export function getFieldSchemaReference() {
         { name: 'created', type: 'autodate', onCreate: true, onUpdate: false, system: true },
         { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true, system: true },
       ],
+    },
+    update_examples: {
+      update_existing_field: {
+        description: 'Merge new properties into an existing field without rewriting the whole schema by hand.',
+        payload: {
+          collection: 'posts',
+          fieldUpdates: [{ name: 'title', required: true, max: 255 }],
+        },
+      },
+      add_new_field: {
+        description: 'Add a new field. New fields in fieldUpdates must include at least name and type.',
+        payload: {
+          collection: 'posts',
+          fieldUpdates: [{ name: 'summary', type: 'text', max: 500 }],
+        },
+      },
+      remove_field: {
+        description: 'Remove one or more fields by name while keeping the rest of the schema untouched.',
+        payload: {
+          collection: 'posts',
+          removeFields: ['obsoleteField'],
+        },
+      },
+      update_select_options: {
+        description: 'Replace select field options by merging a patch into the existing select field.',
+        payload: {
+          collection: 'posts',
+          fieldUpdates: [
+            { name: 'status', values: ['draft', 'review', 'published'], maxSelect: 1 },
+          ],
+        },
+      },
+      update_relation_field: {
+        description: 'Update relation field options such as maxSelect or cascadeDelete.',
+        payload: {
+          collection: 'posts',
+          fieldUpdates: [{ name: 'author', maxSelect: 1, cascadeDelete: false }],
+        },
+      },
     },
   };
 }
