@@ -71,11 +71,13 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
   const dataDir = mkdtempSync(path.join(tmpdir(), 'pb-live-'));
   const migrationsDir = path.join(dataDir, 'pb_migrations');
   mkdirSync(migrationsDir, { recursive: true });
+
   const suffix = Date.now().toString(36);
   const testCollection = `${TEST_COLLECTION_PREFIX}_${suffix}`;
   const authCollection = `${AUTH_COLLECTION_PREFIX}_${suffix}`;
   const relationCollection = `${REL_COLLECTION_PREFIX}_${suffix}`;
   const wrapperArgs = ['-y', '@fadlee/pocketbase-bin'];
+
   logStep(`temp dir: ${dataDir}`);
   logStep(`collections: ${testCollection}, ${relationCollection}, ${authCollection}`);
 
@@ -92,15 +94,23 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     throw new Error('PocketBase binary was not provisioned in the live test directory');
   }
 
-  execFileSync(binaryPath, ['superuser', 'create', ADMIN_EMAIL, ADMIN_PASSWORD, '--dir', dataDir, '--migrationsDir', migrationsDir], {
-    cwd: dataDir,
-    stdio: 'ignore',
-  });
+  execFileSync(
+    binaryPath,
+    ['superuser', 'create', ADMIN_EMAIL, ADMIN_PASSWORD, '--dir', dataDir, '--migrationsDir', migrationsDir],
+    {
+      cwd: dataDir,
+      stdio: 'ignore',
+    }
+  );
 
-  const pocketbaseProcess = spawn(binaryPath, ['serve', `--http=127.0.0.1:${port}`, '--dir', dataDir, '--migrationsDir', migrationsDir], {
-    cwd: dataDir,
-    stdio: 'ignore',
-  });
+  const pocketbaseProcess = spawn(
+    binaryPath,
+    ['serve', `--http=127.0.0.1:${port}`, '--dir', dataDir, '--migrationsDir', migrationsDir],
+    {
+      cwd: dataDir,
+      stdio: 'ignore',
+    }
+  );
 
   try {
     await waitForHealth(baseUrl, pocketbaseProcess);
@@ -115,16 +125,16 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
       identity: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
     });
-    logStep('authenticated as superuser');
     assert.equal(auth.authenticated, true);
+    logStep('authenticated as superuser');
 
     await server.callTool('create_collection', {
       name: testCollection,
       fields: [{ name: 'title', type: 'text', required: true }],
       listRule: null,
     });
-
     logStep('created base collection');
+
     const viewedCollection = await server.callTool('view_collection', { collection: testCollection });
     assert.equal(viewedCollection.name, testCollection);
 
@@ -171,6 +181,27 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     assert.match(resource.text, new RegExp(testCollection));
     logStep('validated collection resource read');
 
+    const rules = await server.callTool('update_collection_rules', {
+      collection: testCollection,
+      listRule: '@request.auth.id != ""',
+      viewRule: '@request.auth.id != ""',
+      createRule: '@request.auth.id != ""',
+      updateRule: '@request.auth.id != ""',
+      deleteRule: '@request.auth.id != ""',
+    });
+    assert.equal(rules.collection, testCollection);
+    assert.equal(rules.currentRules.listRule, '@request.auth.id != ""');
+    assert.equal(rules.currentRules.viewRule, '@request.auth.id != ""');
+    assert.deepEqual(rules.updatedRules, ['listRule', 'viewRule', 'createRule', 'updateRule', 'deleteRule']);
+
+    const protectedList = await server.callTool('list_records', {
+      collection: testCollection,
+      filter: 'status = "published"',
+    });
+    assert.equal(protectedList.items.length, 1);
+    assert.equal(protectedList.items[0].status, 'published');
+    logStep('updated collection rules and verified protected access while authenticated');
+
     await server.callTool('create_collection', {
       name: relationCollection,
       fields: [
@@ -211,20 +242,6 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     assert.equal(expandedList.items[0].expand.post.id, createdRecord.id);
     logStep('verified relation expand on view and list');
 
-    const deletedRelationRecord = await server.callTool('delete_record', {
-      collection: relationCollection,
-      id: relationRecord.id,
-    });
-    assert.equal(deletedRelationRecord.message, 'Record deleted successfully');
-    logStep('deleted relation record');
-
-    const deletedRecord = await server.callTool('delete_record', {
-      collection: testCollection,
-      id: createdRecord.id,
-    });
-    assert.equal(deletedRecord.message, 'Record deleted successfully');
-    logStep('deleted base record');
-
     await server.callTool('create_collection', {
       name: authCollection,
       type: 'auth',
@@ -241,8 +258,8 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
         nickname: 'live-user',
       },
     });
-    logStep(`created auth record ${authRecord.id}`);
     assert.equal(authRecord.email.includes('@example.com'), true);
+    logStep(`created auth record ${authRecord.id}`);
 
     const userAuth = await server.callTool('auth_user', {
       collection: authCollection,
@@ -260,11 +277,46 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     assert.equal(logout.authenticated, false);
     logStep('verified auth status and logout');
 
+    const blockedList = await server.callTool('list_records', { collection: testCollection });
+    assert.equal(blockedList.items.length, 0);
+
+    await assert.rejects(
+      () => server.callTool('view_record', { collection: testCollection, id: createdRecord.id }),
+      (error) => typeof error?.statusCode === 'number' && error.statusCode >= 400
+    );
+    await assert.rejects(
+      () => server.callTool('create_record', { collection: testCollection, data: { title: 'blocked', status: 'draft' } }),
+      (error) => typeof error?.statusCode === 'number' && error.statusCode >= 400
+    );
+    await assert.rejects(
+      () => server.callTool('update_record', { collection: testCollection, id: createdRecord.id, data: { status: 'draft' } }),
+      (error) => typeof error?.statusCode === 'number' && error.statusCode >= 400
+    );
+    await assert.rejects(
+      () => server.callTool('delete_record', { collection: testCollection, id: createdRecord.id }),
+      (error) => typeof error?.statusCode === 'number' && error.statusCode >= 400
+    );
+    logStep('verified collection rules restrict list visibility and block unauthenticated view/create/update/delete');
+
     const adminAuthAgain = await server.callTool('auth_admin', {
       identity: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
     });
     assert.equal(adminAuthAgain.authenticated, true);
+
+    const deletedRelationRecord = await server.callTool('delete_record', {
+      collection: relationCollection,
+      id: relationRecord.id,
+    });
+    assert.equal(deletedRelationRecord.message, 'Record deleted successfully');
+    logStep('deleted relation record');
+
+    const deletedRecord = await server.callTool('delete_record', {
+      collection: testCollection,
+      id: createdRecord.id,
+    });
+    assert.equal(deletedRecord.message, 'Record deleted successfully');
+    logStep('deleted base record');
 
     const deletedRelationCollection = await server.callTool('delete_collection', { collection: relationCollection });
     assert.equal(deletedRelationCollection.message, 'Collection deleted successfully');
