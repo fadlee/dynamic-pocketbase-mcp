@@ -1,8 +1,3 @@
-export interface PocketBaseConfig {
-  baseUrl: string;
-  token?: string;
-}
-
 export interface CollectionField {
   name: string;
   type: string;
@@ -67,20 +62,6 @@ export interface CreateCollectionArgs {
   updateRule?: string | null;
   deleteRule?: string | null;
   indexes?: string[];
-}
-
-export interface UpdateCollectionArgs {
-  collection: string;
-  data?: Record<string, unknown>;
-  fields?: CollectionField[];
-  fieldUpdates?: CollectionFieldPatch[];
-  removeFields?: string[];
-  indexes?: string[];
-  listRule?: string | null;
-  viewRule?: string | null;
-  createRule?: string | null;
-  updateRule?: string | null;
-  deleteRule?: string | null;
 }
 
 export interface UpdateRulesArgs {

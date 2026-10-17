@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -12,6 +13,8 @@ import { serializeError } from './errors.js';
 import { PocketBaseMCPServer } from './server.js';
 import { getToolDefinitions } from './tool-definitions.js';
 
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
+
 const DEFAULT_POCKETBASE_URL = 'http://localhost:8090';
 const POCKETBASE_URL = process.env.POCKETBASE_URL || DEFAULT_POCKETBASE_URL;
 
@@ -20,7 +23,7 @@ const pbServer = new PocketBaseMCPServer(POCKETBASE_URL);
 const mcpServer = new McpServer(
   {
     name: 'dynamic-pocketbase-mcp',
-    version: '1.0.0',
+    version,
   },
   {
     capabilities: {
@@ -85,7 +88,6 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 });
 
 async function main() {
-  await pbServer.initialize();
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);
 }

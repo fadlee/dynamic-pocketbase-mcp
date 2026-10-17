@@ -431,6 +431,26 @@ test('validates collection tool arguments', async () => {
     () => server.callTool('delete_collection', { collection: '' }),
     /Invalid parameter: collection must be a non-empty string/
   );
+  await assert.rejects(
+    () => server.callTool('list_collections', { page: '2' }),
+    /Invalid parameter: page must be an integer/
+  );
+});
+
+test('every tool declares annotations and destructive tools are flagged', () => {
+  const tools = getToolDefinitions();
+  for (const tool of tools) {
+    assert.ok(tool.annotations, `${tool.name} is missing annotations`);
+  }
+
+  const destructive = tools.filter((tool) => tool.annotations.destructiveHint).map((tool) => tool.name);
+  assert.deepEqual(destructive.sort(), [
+    'delete_collection',
+    'delete_record',
+    'update_collection',
+    'update_record',
+  ]);
+  assert.equal(tools.find((tool) => tool.name === 'list_records').annotations.readOnlyHint, true);
 });
 
 test('supports record tools happy path', async () => {
@@ -508,4 +528,30 @@ test('validates resource URI format', async () => {
   const { server } = createServerWithMockRequest();
 
   await assert.rejects(() => server.readResource('invalid://uri'), /Invalid resource URI/);
+});
+
+test('lists resources across all collection pages with encoded URIs', async () => {
+  const server = new PocketBaseMCPServer('http://localhost:8090');
+  const pages = {
+    1: [makeCollection('posts')],
+    2: [makeCollection('my notes')],
+  };
+  server.http.request = async (method, endpoint, data, query) => {
+    if (method === 'GET' && endpoint === '/api/collections') {
+      return { page: query.page, perPage: query.perPage, totalItems: 2, totalPages: 2, items: pages[query.page] };
+    }
+    if (method === 'GET' && endpoint.startsWith('/api/collections/')) {
+      return makeCollection(parseCollectionFromPath(endpoint));
+    }
+    throw new Error(`Unexpected request: ${method} ${endpoint}`);
+  };
+
+  const resources = await server.listResources();
+  assert.deepEqual(
+    resources.map((resource) => resource.uri),
+    ['pocketbase://collection/posts', 'pocketbase://collection/my%20notes']
+  );
+
+  const content = await server.readResource(resources[1].uri);
+  assert.match(content.text, /"name": "my notes"/);
 });

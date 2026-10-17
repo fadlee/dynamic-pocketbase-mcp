@@ -1,5 +1,7 @@
 import { ApiError, AuthError, ValidationError } from './errors.js';
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export class HttpClient {
   private baseUrl: string;
   private token: string | null;
@@ -74,6 +76,7 @@ export class HttpClient {
     const options: RequestInit = {
       method,
       headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     };
 
     if (data !== null && data !== undefined && ['POST', 'PATCH', 'PUT'].includes(method)) {
@@ -81,14 +84,19 @@ export class HttpClient {
     }
 
     let response: Response;
+    let text: string;
     try {
       response = await fetch(url, options);
+      text = await response.text();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message =
+        error instanceof Error && error.name === 'TimeoutError'
+          ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
+          : error instanceof Error
+            ? error.message
+            : String(error);
       throw new ApiError(`Request failed: ${message}`, { details: { method, endpoint } });
     }
-
-    const text = await response.text();
 
     let decoded: T | { message?: string } | undefined;
     try {
@@ -115,21 +123,5 @@ export class HttpClient {
     }
 
     return decoded as T;
-  }
-
-  async authenticate(email: string, password: string): Promise<string | null> {
-    const response = await this.request<{ token?: string }>(
-      'POST',
-      '/api/collections/_superusers/auth-with-password',
-      {
-        identity: email,
-        password: password,
-      },
-      undefined,
-      false
-    );
-
-    this.token = response.token || null;
-    return this.token;
   }
 }

@@ -19,8 +19,6 @@ export class PocketBaseMCPServer {
     this.toolHandlers = this.createToolHandlers();
   }
 
-  async initialize(): Promise<void> {}
-
   private createToolHandlers(): Record<ToolName, ToolHandler> {
     const handlers: ToolHandlerMap = {
       ...createMetaToolHandlers({ api: this.api }),

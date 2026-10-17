@@ -329,11 +329,17 @@ export class PocketBaseApi {
   async listResources(): Promise<
     Array<{ uri: string; name: string; description: string; mimeType: string }>
   > {
-    const collections = await this.listCollections();
-    const items = collections.items || [];
+    const items: Array<{ name: string; type: string }> = [];
+    for (let page = 1; ; page++) {
+      const result = await this.listCollections({ page, perPage: 500 });
+      items.push(...result.items);
+      if (page >= result.totalPages) {
+        break;
+      }
+    }
 
     return items.map((col) => ({
-      uri: `pocketbase://collection/${col.name}`,
+      uri: `pocketbase://collection/${encodeURIComponent(col.name)}`,
       name: col.name,
       description: `Collection: ${col.name} (type: ${col.type})`,
       mimeType: 'application/json',
@@ -346,7 +352,13 @@ export class PocketBaseApi {
       throw new ValidationError('Invalid resource URI');
     }
 
-    const collection = match[1];
+    let collection: string;
+    try {
+      collection = decodeURIComponent(match[1]);
+    } catch {
+      throw new ValidationError('Invalid resource URI');
+    }
+
     const data = await this.viewCollection(collection);
 
     return {

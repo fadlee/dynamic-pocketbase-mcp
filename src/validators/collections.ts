@@ -1,8 +1,9 @@
-import type { CollectionFieldPatch, CreateCollectionArgs, UpdateRulesArgs } from '../types.js';
+import type { CollectionFieldPatch, CreateCollectionArgs, ListCollectionsArgs, UpdateRulesArgs } from '../types.js';
 import { ValidationError } from '../errors.js';
 import {
   assertObjectArray,
   assertStringArray,
+  optionalInteger,
   optionalNullableString,
   requireObject,
   requireString,
@@ -23,6 +24,13 @@ function readRuleValues(source: UnknownObject): Partial<Record<RuleKey, string |
   }
 
   return rules;
+}
+
+export function parseListCollectionsArgs(args: UnknownObject): ListCollectionsArgs {
+  return {
+    page: optionalInteger(args.page, 'page'),
+    perPage: optionalInteger(args.perPage, 'perPage'),
+  };
 }
 
 export function parseCollectionName(args: UnknownObject): string {

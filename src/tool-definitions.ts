@@ -17,6 +17,7 @@ const COLLECTION_FIELD_SCHEMA = {
     onlyInt: { type: 'boolean', description: 'Allow only integers for number fields' },
     noDecimal: { type: 'boolean', description: 'Disallow decimal places for number fields' },
     exceptDomains: {
+      type: 'array',
       description: 'Blocked email domains',
       items: { type: 'string' },
     },
@@ -52,9 +53,15 @@ const COLLECTION_FIELD_SCHEMA = {
   additionalProperties: true,
 } as const;
 
+const READ_ONLY = { readOnlyHint: true } as const;
+const IDEMPOTENT_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: true } as const;
+const ADDITIVE_WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false } as const;
+const DESTRUCTIVE_WRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true } as const;
+
 export const TOOL_DEFINITIONS = [
     {
       name: 'health',
+      annotations: READ_ONLY,
       description: 'Check PocketBase server health status',
       inputSchema: {
         type: 'object',
@@ -64,6 +71,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'set_base_url',
+      annotations: IDEMPOTENT_WRITE,
       description: 'Set PocketBase server URL for this MCP session and clear auth token',
       inputSchema: {
         type: 'object',
@@ -78,6 +86,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'auth_admin',
+      annotations: IDEMPOTENT_WRITE,
       description: 'Authenticate as PocketBase admin/superuser',
       inputSchema: {
         type: 'object',
@@ -96,6 +105,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'auth_user',
+      annotations: IDEMPOTENT_WRITE,
       description: 'Authenticate as PocketBase auth collection user',
       inputSchema: {
         type: 'object',
@@ -118,6 +128,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'get_auth_status',
+      annotations: READ_ONLY,
       description: 'Check current authentication status/token state',
       inputSchema: {
         type: 'object',
@@ -127,6 +138,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'logout',
+      annotations: IDEMPOTENT_WRITE,
       description: 'Clear current authentication session token',
       inputSchema: {
         type: 'object',
@@ -136,6 +148,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'list_collections',
+      annotations: READ_ONLY,
       description: 'List all collections with optional pagination',
       inputSchema: {
         type: 'object',
@@ -154,6 +167,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'view_collection',
+      annotations: READ_ONLY,
       description: 'View a collection by name or ID',
       inputSchema: {
         type: 'object',
@@ -168,6 +182,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'get_field_schema_reference',
+      annotations: READ_ONLY,
       description:
         'Get PocketBase collection field schema reference, including create examples and update_collection field patch examples. Call this before create_collection or schema updates to see correct field syntax.',
       inputSchema: {
@@ -178,6 +193,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'create_collection',
+      annotations: ADDITIVE_WRITE,
       description:
         'Create a new collection. Call get_field_schema_reference first to see correct field syntax. For base/auth collections, created and updated autodate system fields are auto-added unless you provide them.',
       inputSchema: {
@@ -231,6 +247,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'update_collection',
+      annotations: DESTRUCTIVE_WRITE,
       description:
         'Update an existing collection. Partial updates are allowed for collection properties. You may either send a full fields array, or let the MCP server merge schema patches via fieldUpdates/removeFields before sending the final fields array to PocketBase. Call get_field_schema_reference for concrete patch examples.',
       inputSchema: {
@@ -305,6 +322,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'delete_collection',
+      annotations: DESTRUCTIVE_WRITE,
       description: 'Delete a collection',
       inputSchema: {
         type: 'object',
@@ -319,6 +337,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'get_rules_reference',
+      annotations: READ_ONLY,
       description:
         'Get API rules syntax reference. Call this BEFORE update_collection_rules to understand filter syntax, operators, modifiers, and macros.',
       inputSchema: {
@@ -329,6 +348,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'update_collection_rules',
+      annotations: IDEMPOTENT_WRITE,
       description:
         'Update collection API rules (access control). Call get_rules_reference first for syntax. Use null for admin-only, "" for public, or filter expression.',
       inputSchema: {
@@ -365,6 +385,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'list_records',
+      annotations: READ_ONLY,
       description:
         'List records from a collection with optional filtering, sorting, and pagination',
       inputSchema: {
@@ -404,6 +425,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'view_record',
+      annotations: READ_ONLY,
       description: 'View a single record by ID',
       inputSchema: {
         type: 'object',
@@ -430,6 +452,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'create_record',
+      annotations: ADDITIVE_WRITE,
       description: 'Create a new record in a collection',
       inputSchema: {
         type: 'object',
@@ -452,6 +475,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'update_record',
+      annotations: DESTRUCTIVE_WRITE,
       description: 'Update an existing record',
       inputSchema: {
         type: 'object',
@@ -478,6 +502,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
       name: 'delete_record',
+      annotations: DESTRUCTIVE_WRITE,
       description: 'Delete a record',
       inputSchema: {
         type: 'object',

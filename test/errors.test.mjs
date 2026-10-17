@@ -50,3 +50,23 @@ test('HttpClient maps fetch failures into api_error payload', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('HttpClient aborts requests with a timeout signal', async () => {
+  const originalFetch = globalThis.fetch;
+  let signal;
+  globalThis.fetch = async (_url, options) => {
+    signal = options.signal;
+    throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+  };
+
+  try {
+    const client = new HttpClient('http://localhost:8090');
+    await assert.rejects(
+      () => client.request('GET', '/api/health'),
+      (error) => serializeError(error).type === 'api_error' && /timed out after/.test(error.message)
+    );
+    assert.ok(signal instanceof AbortSignal);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
