@@ -61,6 +61,18 @@ export function optionalInteger(value: unknown, parameter: string): number | und
   return value;
 }
 
+export function optionalBoolean(value: unknown, parameter: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== 'boolean') {
+    throw new ValidationError(`Invalid parameter: ${parameter} must be a boolean`);
+  }
+
+  return value;
+}
+
 export function requireObject(value: unknown, parameter: string): UnknownObject {
   if (value === undefined || value === null) {
     throw new ValidationError(`Missing required parameter: ${parameter}`);

@@ -1,5 +1,5 @@
 import { ValidationError } from './errors.js';
-import { HttpClient } from './http-client.js';
+import { HttpClient, type AuthOptions } from './http-client.js';
 import { PocketBaseApi } from './pocketbase-api.js';
 import { createAuthToolHandlers } from './tool-handlers/auth.js';
 import { createCollectionToolHandlers } from './tool-handlers/collections.js';
@@ -13,8 +13,8 @@ export class PocketBaseMCPServer {
   private readonly api: PocketBaseApi;
   private readonly toolHandlers: Record<ToolName, ToolHandler>;
 
-  constructor(baseUrl: string, token?: string) {
-    this.http = new HttpClient(baseUrl, token);
+  constructor(baseUrl: string, auth?: AuthOptions) {
+    this.http = new HttpClient(baseUrl, auth);
     this.api = new PocketBaseApi(this.http);
     this.toolHandlers = this.createToolHandlers();
   }

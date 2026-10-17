@@ -1,18 +1,51 @@
 import { ApiError, AuthError, ValidationError } from './errors.js';
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const TOKEN_REFRESH_MARGIN_SECONDS = 60;
+const SUPERUSER_AUTH_ENDPOINT = '/api/collections/_superusers/auth-with-password';
+
+export interface AuthOptions {
+  token?: string;
+  identity?: string;
+  password?: string;
+}
+
+interface Credentials {
+  identity: string;
+  password: string;
+}
+
+function tokenExpiresSoon(token: string): boolean {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+    return typeof payload.exp === 'number' && payload.exp - Date.now() / 1000 < TOKEN_REFRESH_MARGIN_SECONDS;
+  } catch {
+    return false;
+  }
+}
 
 export class HttpClient {
   private baseUrl: string;
   private token: string | null;
+  // Superuser credentials for automatic (re-)login. Cleared by any manual auth change,
+  // so they are never sent to a different base URL or mixed with another identity.
+  private credentials: Credentials | null;
+  private pendingAuth: Promise<void> | null = null;
 
-  constructor(baseUrl: string, token?: string) {
+  constructor(baseUrl: string, auth: AuthOptions = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.token = token || null;
+    this.token = auth.token || null;
+    this.credentials =
+      auth.identity && auth.password ? { identity: auth.identity, password: auth.password } : null;
   }
 
   setToken(token: string | null): void {
     this.token = token;
+    this.credentials = null;
+  }
+
+  hasAutoAuth(): boolean {
+    return this.credentials !== null;
   }
 
   getToken(): string | null {
@@ -21,6 +54,38 @@ export class HttpClient {
 
   clearToken(): void {
     this.token = null;
+    this.credentials = null;
+  }
+
+  private async ensureAuth(): Promise<void> {
+    const credentials = this.credentials;
+    if (!credentials || (this.token && !tokenExpiresSoon(this.token))) {
+      return;
+    }
+
+    this.pendingAuth ??= this.loginWithCredentials(credentials).finally(() => {
+      this.pendingAuth = null;
+    });
+    await this.pendingAuth;
+  }
+
+  private async loginWithCredentials(credentials: Credentials): Promise<void> {
+    const response = await this.request<{ token?: string }>(
+      'POST',
+      SUPERUSER_AUTH_ENDPOINT,
+      { identity: credentials.identity, password: credentials.password },
+      undefined,
+      false
+    );
+
+    if (!response.token) {
+      throw new AuthError('Superuser login with environment credentials returned no token');
+    }
+
+    // Auth may have been changed manually while this login was in flight.
+    if (this.credentials === credentials) {
+      this.token = response.token;
+    }
   }
 
   getBaseUrl(): string {
@@ -50,6 +115,10 @@ export class HttpClient {
     query?: Record<string, string | number>,
     useAuth = true
   ): Promise<T> {
+    if (useAuth) {
+      await this.ensureAuth();
+    }
+
     let url = this.baseUrl + endpoint;
 
     if (query && Object.keys(query).length > 0) {

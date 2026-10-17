@@ -1,6 +1,7 @@
 import type {
   AuthAdminArgs,
   AuthUserArgs,
+  BatchRecordOperation,
   Collection,
   CollectionField,
   CreateCollectionArgs,
@@ -92,6 +93,7 @@ export class PocketBaseApi {
     const token = this.http.getToken();
     return {
       authenticated: Boolean(token),
+      autoAuth: this.http.hasAutoAuth(),
       tokenPreview: this.getTokenPreview(token),
       baseUrl: this.http.getBaseUrl(),
     };
@@ -260,6 +262,10 @@ export class PocketBaseApi {
       }
     }
 
+    if (options.skipTotal) {
+      query.skipTotal = 1;
+    }
+
     return this.http.request<ListResult<PBRecord>>(
       'GET',
       `/api/collections/${encodeURIComponent(collection)}/records`,
@@ -324,6 +330,34 @@ export class PocketBaseApi {
       `/api/collections/${encodeURIComponent(collection)}/records/${encodeURIComponent(id)}`
     );
     return { message: 'Record deleted successfully' };
+  }
+
+  async batchRecords(operations: BatchRecordOperation[]) {
+    const methods = { create: 'POST', update: 'PATCH', upsert: 'PUT', delete: 'DELETE' } as const;
+
+    const requests = operations.map(({ action, collection, id, data }) => {
+      const recordsPath = `/api/collections/${encodeURIComponent(collection)}/records`;
+      return {
+        method: methods[action],
+        url: id !== undefined ? `${recordsPath}/${encodeURIComponent(id)}` : recordsPath,
+        ...(data !== undefined ? { body: data } : {}),
+      };
+    });
+
+    const responses = await this.http.request<Array<{ status: number; body: unknown }>>(
+      'POST',
+      '/api/batch',
+      { requests }
+    );
+
+    return {
+      results: responses.map((response, index) => ({
+        action: operations[index].action,
+        collection: operations[index].collection,
+        status: response.status,
+        body: response.body ?? null,
+      })),
+    };
   }
 
   async listResources(): Promise<

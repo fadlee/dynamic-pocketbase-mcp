@@ -11,6 +11,7 @@ export interface CollectionField {
 export interface CollectionFieldPatch extends Partial<CollectionField> {
   name: string;
   type?: string;
+  newName?: string;
 }
 
 export interface Collection {
@@ -81,6 +82,7 @@ export interface ListRecordsArgs {
   filter?: string;
   expand?: string;
   fields?: string;
+  skipTotal?: boolean;
 }
 
 export interface ListCollectionsArgs {
@@ -111,6 +113,13 @@ export interface UpdateRecordArgs {
 export interface DeleteRecordArgs {
   collection: string;
   id: string;
+}
+
+export interface BatchRecordOperation {
+  action: 'create' | 'update' | 'upsert' | 'delete';
+  collection: string;
+  id?: string;
+  data?: Record<string, unknown>;
 }
 
 export interface AuthAdminArgs {

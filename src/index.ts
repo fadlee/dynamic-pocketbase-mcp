@@ -18,7 +18,18 @@ const { version } = createRequire(import.meta.url)('../package.json') as { versi
 const DEFAULT_POCKETBASE_URL = 'http://localhost:8090';
 const POCKETBASE_URL = process.env.POCKETBASE_URL || DEFAULT_POCKETBASE_URL;
 
-const pbServer = new PocketBaseMCPServer(POCKETBASE_URL);
+const { POCKETBASE_TOKEN, POCKETBASE_ADMIN_EMAIL, POCKETBASE_ADMIN_PASSWORD } = process.env;
+
+if (Boolean(POCKETBASE_ADMIN_EMAIL) !== Boolean(POCKETBASE_ADMIN_PASSWORD)) {
+  console.error('POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD must be set together');
+  process.exit(1);
+}
+
+const pbServer = new PocketBaseMCPServer(POCKETBASE_URL, {
+  token: POCKETBASE_TOKEN,
+  identity: POCKETBASE_ADMIN_EMAIL,
+  password: POCKETBASE_ADMIN_PASSWORD,
+});
 
 const mcpServer = new McpServer(
   {

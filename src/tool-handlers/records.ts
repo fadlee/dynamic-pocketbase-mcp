@@ -1,4 +1,4 @@
-import { parseCreateRecordArgs, parseDeleteRecordArgs, parseListRecordsArgs, parseUpdateRecordArgs, parseViewRecordArgs } from '../validators/records.js';
+import { parseBatchRecordsArgs, parseCreateRecordArgs, parseDeleteRecordArgs, parseListRecordsArgs, parseUpdateRecordArgs, parseViewRecordArgs } from '../validators/records.js';
 import type { ToolHandlerContext, ToolHandlerMap } from './types.js';
 
 export function createRecordToolHandlers(context: ToolHandlerContext): ToolHandlerMap {
@@ -9,6 +9,7 @@ export function createRecordToolHandlers(context: ToolHandlerContext): ToolHandl
     view_record: async (args) => api.viewRecord(parseViewRecordArgs(args)),
     create_record: async (args) => api.createRecord(parseCreateRecordArgs(args)),
     update_record: async (args) => api.updateRecord(parseUpdateRecordArgs(args)),
+    batch_records: async (args) => api.batchRecords(parseBatchRecordsArgs(args)),
     delete_record: async (args) => {
       const parsed = parseDeleteRecordArgs(args);
       return api.deleteRecord(parsed.collection, parsed.id);

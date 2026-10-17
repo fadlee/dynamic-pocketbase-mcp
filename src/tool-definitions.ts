@@ -272,9 +272,16 @@ export const TOOL_DEFINITIONS = [
           fieldUpdates: {
             type: 'array',
             description:
-              'Optional MCP-side partial field patches. Existing fields are merged by name. New fields must include at least name and type.',
+              'Optional MCP-side partial field patches. Existing fields are merged by name; set newName to rename an existing field while keeping its data. New fields must include at least name and type.',
             items: {
               ...COLLECTION_FIELD_SCHEMA,
+              properties: {
+                ...COLLECTION_FIELD_SCHEMA.properties,
+                newName: {
+                  type: 'string',
+                  description: 'Rename an existing field (matched by name) to this name. Data is preserved.',
+                },
+              },
               required: ['name'],
             },
           },
@@ -419,6 +426,11 @@ export const TOOL_DEFINITIONS = [
             type: 'string',
             description: 'Comma-separated fields to return',
           },
+          skipTotal: {
+            type: 'boolean',
+            description:
+              'Skip counting totalItems/totalPages (returned as -1) for a faster query on large collections',
+          },
         },
         required: ['collection'],
       },
@@ -498,6 +510,45 @@ export const TOOL_DEFINITIONS = [
           },
         },
         required: ['collection', 'id', 'data'],
+      },
+    },
+    {
+      name: 'batch_records',
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+      description:
+        'Create, update, upsert, or delete multiple records in one transaction (all succeed or all are rolled back). Requires the Batch API to be enabled in PocketBase settings (Settings > Application > Batch API).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          requests: {
+            type: 'array',
+            description: 'Operations to run in order',
+            items: {
+              type: 'object',
+              properties: {
+                action: {
+                  type: 'string',
+                  enum: ['create', 'update', 'upsert', 'delete'],
+                  description: 'upsert creates the record, or updates it when data.id already exists',
+                },
+                collection: {
+                  type: 'string',
+                  description: 'Collection name or ID',
+                },
+                id: {
+                  type: 'string',
+                  description: 'Record ID (required for update and delete)',
+                },
+                data: {
+                  type: 'object',
+                  description: 'Record data (required for create, update, and upsert)',
+                },
+              },
+              required: ['action', 'collection'],
+            },
+          },
+        },
+        required: ['requests'],
       },
     },
     {

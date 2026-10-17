@@ -168,6 +168,13 @@ export function getFieldSchemaReference() {
           fieldUpdates: [{ name: 'summary', type: 'text', max: 500 }],
         },
       },
+      rename_field: {
+        description: 'Rename an existing field with newName. The field id is kept, so existing data is preserved.',
+        payload: {
+          collection: 'posts',
+          fieldUpdates: [{ name: 'body', newName: 'content' }],
+        },
+      },
       remove_field: {
         description: 'Remove one or more fields by name while keeping the rest of the schema untouched.',
         payload: {

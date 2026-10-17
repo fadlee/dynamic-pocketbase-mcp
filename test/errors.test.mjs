@@ -70,3 +70,80 @@ test('HttpClient aborts requests with a timeout signal', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+function makeJwt(expiresInSeconds) {
+  const payload = Buffer.from(
+    JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expiresInSeconds })
+  ).toString('base64url');
+  return `header.${payload}.signature`;
+}
+
+function mockFetch(tokens) {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    const endpoint = new URL(url).pathname;
+    calls.push({ endpoint, authorization: options.headers.Authorization });
+    if (endpoint === '/api/collections/_superusers/auth-with-password') {
+      return new Response(JSON.stringify({ token: tokens.shift() }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+  return calls;
+}
+
+test('HttpClient logs in lazily with credentials and shares one login across parallel requests', async () => {
+  const originalFetch = globalThis.fetch;
+  const token = makeJwt(3600);
+  const calls = mockFetch([token]);
+
+  try {
+    const client = new HttpClient('http://localhost:8090', { identity: 'a@b.c', password: 'secret' });
+    await Promise.all([client.request('GET', '/api/collections'), client.request('GET', '/api/settings')]);
+
+    const logins = calls.filter((call) => call.endpoint.endsWith('/auth-with-password'));
+    assert.equal(logins.length, 1);
+    assert.equal(logins[0].authorization, undefined);
+    assert.deepEqual(
+      calls.filter((call) => !call.endpoint.endsWith('/auth-with-password')).map((call) => call.authorization),
+      [token, token]
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('HttpClient re-authenticates when the token is about to expire', async () => {
+  const originalFetch = globalThis.fetch;
+  const freshToken = makeJwt(3600);
+  const calls = mockFetch([freshToken]);
+
+  try {
+    const client = new HttpClient('http://localhost:8090', {
+      token: makeJwt(10),
+      identity: 'a@b.c',
+      password: 'secret',
+    });
+    await client.request('GET', '/api/collections');
+
+    assert.equal(calls[0].endpoint, '/api/collections/_superusers/auth-with-password');
+    assert.equal(calls[1].authorization, freshToken);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('HttpClient stops auto-auth after logout or base URL change', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = mockFetch([makeJwt(3600)]);
+
+  try {
+    const client = new HttpClient('http://localhost:8090', { identity: 'a@b.c', password: 'secret' });
+    client.setBaseUrl('https://other.example.com');
+    assert.equal(client.hasAutoAuth(), false);
+
+    await client.request('GET', '/api/collections');
+    assert.deepEqual(calls, [{ endpoint: '/api/collections', authorization: undefined }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

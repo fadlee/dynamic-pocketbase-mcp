@@ -121,6 +121,14 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     const health = await server.callTool('health', {});
     assert.equal(health.code, 200);
 
+    const envServer = new PocketBaseMCPServer(baseUrl, { identity: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    const envCollections = await envServer.callTool('list_collections', {});
+    assert.equal(Array.isArray(envCollections.items), true);
+    const envStatus = await envServer.callTool('get_auth_status', {});
+    assert.equal(envStatus.authenticated, true);
+    assert.equal(envStatus.autoAuth, true);
+    logStep('authenticated automatically with environment-style superuser credentials');
+
     const auth = await server.callTool('auth_admin', {
       identity: ADMIN_EMAIL,
       password: ADMIN_PASSWORD,
@@ -176,6 +184,45 @@ test('live PocketBase flow exercises real server', { skip: !RUN_LIVE, timeout: 1
     assert.equal(records.items.length, 1);
     assert.equal(records.items[0].status, 'published');
     logStep('verified record update and filtered list');
+
+    await server.callTool('update_collection', {
+      collection: testCollection,
+      fieldUpdates: [{ name: 'title', newName: 'heading' }],
+    });
+    const renamedRecord = await server.callTool('view_record', { collection: testCollection, id: createdRecord.id });
+    assert.equal(renamedRecord.heading, RECORD_TITLE);
+    await server.callTool('update_collection', {
+      collection: testCollection,
+      fieldUpdates: [{ name: 'heading', newName: 'title' }],
+    });
+    logStep('renamed a field with newName and kept its data');
+
+    await server.http.request('PATCH', '/api/settings', { batch: { enabled: true, maxRequests: 50 } });
+    const batchCreate = await server.callTool('batch_records', {
+      requests: [
+        { action: 'create', collection: testCollection, data: { title: 'batch 1', status: 'draft' } },
+        { action: 'create', collection: testCollection, data: { title: 'batch 2', status: 'draft' } },
+      ],
+    });
+    assert.deepEqual(batchCreate.results.map((result) => result.status), [200, 200]);
+
+    const draftList = await server.callTool('list_records', {
+      collection: testCollection,
+      filter: 'status = "draft"',
+      skipTotal: true,
+    });
+    assert.equal(draftList.items.length, 2);
+    assert.equal(draftList.totalItems, -1);
+
+    const batchDelete = await server.callTool('batch_records', {
+      requests: batchCreate.results.map((result) => ({
+        action: 'delete',
+        collection: testCollection,
+        id: result.body.id,
+      })),
+    });
+    assert.deepEqual(batchDelete.results.map((result) => result.status), [204, 204]);
+    logStep('created and deleted records with batch_records; verified skipTotal');
 
     const resource = await server.readResource(`pocketbase://collection/${testCollection}`);
     assert.match(resource.text, new RegExp(testCollection));

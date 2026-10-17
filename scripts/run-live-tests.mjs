@@ -15,7 +15,7 @@ const adminEmail = process.env.POCKETBASE_LIVE_ADMIN_EMAIL || 'admin@example.com
 console.log('PocketBase live integration test');
 console.log(`- server: ${baseUrl}`);
 console.log(`- admin: ${adminEmail}`);
-console.log('- coverage: health, admin auth, collection CRUD, record CRUD, relation expand, auth_user');
+console.log('- coverage: health, env auto-auth, admin auth, collection CRUD, field rename, record CRUD, batch, skipTotal, relation expand, auth_user');
 console.log('');
 
 const result = spawnSync(process.execPath, ['--test', 'test/live-pocketbase.test.mjs'], {

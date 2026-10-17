@@ -31,12 +31,17 @@ export function createCollectionToolHandlers(context: ToolHandlerContext): ToolH
         fieldsByName.delete(fieldName);
       }
 
-      for (const fieldPatch of parsed.fieldUpdates || []) {
+      for (const { newName, ...fieldPatch } of parsed.fieldUpdates || []) {
         const existing = fieldsByName.get(fieldPatch.name);
 
         if (existing) {
-          fieldsByName.set(fieldPatch.name, { ...existing, ...fieldPatch, name: existing.name });
+          // Keeping the existing field id makes PocketBase rename the column instead of recreating it.
+          fieldsByName.set(fieldPatch.name, { ...existing, ...fieldPatch, name: newName ?? existing.name });
           continue;
+        }
+
+        if (newName !== undefined) {
+          throw new ValidationError(`newName can only rename an existing field: ${fieldPatch.name}`);
         }
 
         if (fieldPatch.type === undefined) {
@@ -55,6 +60,14 @@ export function createCollectionToolHandlers(context: ToolHandlerContext): ToolH
         if (!currentFieldNames.has(fieldPatch.name)) {
           nextFields.push(fieldsByName.get(fieldPatch.name) as CollectionField);
         }
+      }
+
+      const seenNames = new Set<string>();
+      for (const field of nextFields) {
+        if (seenNames.has(field.name)) {
+          throw new ValidationError(`Duplicate field name after update: ${field.name}`);
+        }
+        seenNames.add(field.name);
       }
 
       return api.updateCollection(parsed.collection, {

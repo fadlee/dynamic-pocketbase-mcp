@@ -92,6 +92,10 @@ export function parseUpdateCollectionArgs(args: UnknownObject): {
         throw new ValidationError(`Invalid parameter: fieldUpdates[${index}].type must be a string`);
       }
 
+      if (item.newName !== undefined) {
+        requireString(item.newName, `fieldUpdates[${index}].newName`);
+      }
+
       return { ...item, name };
     });
   }

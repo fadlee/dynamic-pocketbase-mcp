@@ -13,10 +13,11 @@ Many PocketBase MCP servers are static: they hardcode collection-specific behavi
 
 ## Features
 
-- 18 MCP tools for health, auth, collections, rules, and records
+- 20 MCP tools for health, auth, collections, rules, and records
 - Collection lifecycle operations (create, update, delete, inspect)
 - Record CRUD with filters, sorting, pagination, and field selection
-- Session-based auth via tools (`auth_admin`, `auth_user`, `get_auth_status`, `logout`)
+- Superuser auth from environment variables with automatic token refresh, or session auth via tools (`auth_admin`, `auth_user`, `get_auth_status`, `logout`)
+- Transactional multi-record writes with `batch_records`
 - Built-in references for field schema, schema patch examples, and rules syntax
 
 ## Installation
@@ -46,6 +47,24 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 If `POCKETBASE_URL` is not set, the server defaults to `http://localhost:8090`.
 
+To keep superuser credentials out of the chat, pass them as environment variables instead of using `auth_admin`:
+
+```json
+{
+  "mcpServers": {
+    "dynamic-pocketbase": {
+      "command": "npx",
+      "args": ["-y", "dynamic-pocketbase-mcp"],
+      "env": {
+        "POCKETBASE_URL": "https://pb.example.com",
+        "POCKETBASE_ADMIN_EMAIL": "admin@example.com",
+        "POCKETBASE_ADMIN_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
 ## Direct usage
 
 ```bash
@@ -72,11 +91,13 @@ After you configure your MCP client, open a chat and try prompts like this:
 
 If those steps succeed, your AI can now manage schema and data through this MCP server.
 
-## Authentication flow (via tools)
+## Authentication
 
-1. `auth_admin` or `auth_user`
-2. `get_auth_status`
-3. `logout`
+**Environment (recommended for superusers).** Set `POCKETBASE_ADMIN_EMAIL` and `POCKETBASE_ADMIN_PASSWORD`. The server logs in on the first request and logs in again shortly before the token expires. You can also set `POCKETBASE_TOKEN` (for example a long-lived superuser API token). It is used as is, and if credentials are also set, they take over when it expires. Superusers with MFA/OTP enabled cannot use password login.
+
+Automatic login stops as soon as you call `auth_admin`, `auth_user`, `logout`, or `set_base_url`. This means the credentials are never sent to a different server URL. `get_auth_status` reports `autoAuth: true` while it is active.
+
+**Tools.** `auth_admin` or `auth_user`, then `get_auth_status`, then `logout`.
 
 ## Available tools
 
@@ -96,16 +117,17 @@ If those steps succeed, your AI can now manage schema and data through this MCP 
 - `list_collections` - List all collections
 - `view_collection` - View collection by name or ID
 - `create_collection` - Create new collection (auto-adds `created` and `updated` autodate fields for base/auth collections unless provided)
-- `update_collection` - Update collection schema/settings (partial object updates allowed; use `fieldUpdates`/`removeFields` for MCP-side schema merging, or `fields` for direct full-array replacement; see `get_field_schema_reference` examples)
+- `update_collection` - Update collection schema/settings (partial object updates allowed; use `fieldUpdates`/`removeFields` for MCP-side schema merging, `newName` inside `fieldUpdates` to rename a field without losing data, or `fields` for direct full-array replacement; see `get_field_schema_reference` examples)
 - `delete_collection` - Delete collection
 - `update_collection_rules` - Update access control rules
 
 ### Records
-- `list_records` - List/search records with filtering, sorting, pagination
+- `list_records` - List/search records with filtering, sorting, pagination (`skipTotal` for faster queries on large collections)
 - `view_record` - View single record by ID
 - `create_record` - Create new record
 - `update_record` - Update existing record
 - `delete_record` - Delete record
+- `batch_records` - Create/update/upsert/delete multiple records in one transaction (requires Batch API enabled in PocketBase settings)
 
 ## Development
 
@@ -141,6 +163,9 @@ bun run build
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `POCKETBASE_URL` | No | PocketBase server URL (default: `http://localhost:8090`) |
+| `POCKETBASE_ADMIN_EMAIL` | No | Superuser email for automatic login (set together with password) |
+| `POCKETBASE_ADMIN_PASSWORD` | No | Superuser password for automatic login |
+| `POCKETBASE_TOKEN` | No | Pre-issued auth token sent with every request |
 
 Additional live-test environment variables:
 

@@ -151,6 +151,7 @@ test('supports meta tools happy path', async () => {
   assert.deepEqual(Object.keys(fieldRef.update_examples), [
     'update_existing_field',
     'add_new_field',
+    'rename_field',
     'remove_field',
     'update_select_options',
     'update_relation_field',
@@ -377,6 +378,40 @@ test('merges partial field updates before calling PocketBase', async () => {
   });
 });
 
+test('renames existing fields with newName and rejects name collisions', async () => {
+  const { server, calls } = createServerWithMockRequest();
+
+  await server.callTool('update_collection', {
+    collection: 'posts',
+    fieldUpdates: [{ name: 'title', newName: 'headline', required: true }],
+  });
+
+  const patchCall = calls.find((call) => call.method === 'PATCH' && call.endpoint === '/api/collections/posts');
+  assert.deepEqual(patchCall.data, {
+    fields: [{ name: 'headline', type: 'text', required: true }],
+  });
+
+  await assert.rejects(
+    () =>
+      server.callTool('update_collection', {
+        collection: 'posts',
+        fieldUpdates: [{ name: 'missing', newName: 'other', type: 'text' }],
+      }),
+    /newName can only rename an existing field: missing/
+  );
+  await assert.rejects(
+    () =>
+      server.callTool('update_collection', {
+        collection: 'posts',
+        fieldUpdates: [
+          { name: 'title', newName: 'summary' },
+          { name: 'summary', type: 'text' },
+        ],
+      }),
+    /Duplicate field name after update: summary/
+  );
+});
+
 test('requires type when adding a new field via fieldUpdates', async () => {
   const { server } = createServerWithMockRequest();
 
@@ -445,6 +480,7 @@ test('every tool declares annotations and destructive tools are flagged', () => 
 
   const destructive = tools.filter((tool) => tool.annotations.destructiveHint).map((tool) => tool.name);
   assert.deepEqual(destructive.sort(), [
+    'batch_records',
     'delete_collection',
     'delete_record',
     'update_collection',
@@ -554,4 +590,62 @@ test('lists resources across all collection pages with encoded URIs', async () =
 
   const content = await server.readResource(resources[1].uri);
   assert.match(content.text, /"name": "my notes"/);
+});
+
+test('list_records forwards skipTotal as a query flag', async () => {
+  const { server, calls } = createServerWithMockRequest();
+
+  await server.callTool('list_records', { collection: 'posts', skipTotal: true });
+  assert.equal(calls.at(-1).query.skipTotal, 1);
+
+  await assert.rejects(
+    () => server.callTool('list_records', { collection: 'posts', skipTotal: 'yes' }),
+    /Invalid parameter: skipTotal must be a boolean/
+  );
+});
+
+test('batch_records maps operations to PocketBase batch requests', async () => {
+  const server = new PocketBaseMCPServer('http://localhost:8090');
+  let sent;
+  server.http.request = async (method, endpoint, data) => {
+    assert.equal(method, 'POST');
+    assert.equal(endpoint, '/api/batch');
+    sent = data;
+    return data.requests.map(() => ({ status: 200, body: { id: 'r1' } }));
+  };
+
+  const result = await server.callTool('batch_records', {
+    requests: [
+      { action: 'create', collection: 'posts', data: { title: 'a' } },
+      { action: 'update', collection: 'posts', id: 'r1', data: { title: 'b' } },
+      { action: 'upsert', collection: 'posts', data: { id: 'r2', title: 'c' } },
+      { action: 'delete', collection: 'my posts', id: 'r/3' },
+    ],
+  });
+
+  assert.deepEqual(sent.requests, [
+    { method: 'POST', url: '/api/collections/posts/records', body: { title: 'a' } },
+    { method: 'PATCH', url: '/api/collections/posts/records/r1', body: { title: 'b' } },
+    { method: 'PUT', url: '/api/collections/posts/records', body: { id: 'r2', title: 'c' } },
+    { method: 'DELETE', url: '/api/collections/my%20posts/records/r%2F3' },
+  ]);
+  assert.deepEqual(result.results[3], { action: 'delete', collection: 'my posts', status: 200, body: { id: 'r1' } });
+});
+
+test('validates batch_records arguments', async () => {
+  const { server } = createServerWithMockRequest();
+
+  await assert.rejects(() => server.callTool('batch_records', { requests: [] }), /requests must not be empty/);
+  await assert.rejects(
+    () => server.callTool('batch_records', { requests: [{ action: 'drop', collection: 'posts' }] }),
+    /requests\[0\]\.action must be one of create, update, upsert, delete/
+  );
+  await assert.rejects(
+    () => server.callTool('batch_records', { requests: [{ action: 'update', collection: 'posts', data: {} }] }),
+    /Missing required parameter: requests\[0\]\.id/
+  );
+  await assert.rejects(
+    () => server.callTool('batch_records', { requests: [{ action: 'create', collection: 'posts' }] }),
+    /Missing required parameter: requests\[0\]\.data/
+  );
 });
