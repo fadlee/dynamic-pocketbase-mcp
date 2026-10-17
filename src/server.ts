@@ -5,13 +5,13 @@ import { createAuthToolHandlers } from './tool-handlers/auth.js';
 import { createCollectionToolHandlers } from './tool-handlers/collections.js';
 import { createMetaToolHandlers } from './tool-handlers/meta.js';
 import { createRecordToolHandlers } from './tool-handlers/records.js';
-import type { ToolHandler, ToolHandlerMap } from './tool-handlers/types.js';
-import { TOOL_DEFINITIONS, type ToolName } from './tool-definitions.js';
+import type { ToolHandlerMap, ToolHandlers } from './tool-handlers/types.js';
+import { TOOL_DEFINITIONS, findToolDefinition, parseToolInput } from './tool-definitions.js';
 
 export class PocketBaseMCPServer {
   private readonly http: HttpClient;
   private readonly api: PocketBaseApi;
-  private readonly toolHandlers: Record<ToolName, ToolHandler>;
+  private readonly toolHandlers: ToolHandlers;
 
   constructor(baseUrl: string, auth?: AuthOptions) {
     this.http = new HttpClient(baseUrl, auth);
@@ -19,7 +19,7 @@ export class PocketBaseMCPServer {
     this.toolHandlers = this.createToolHandlers();
   }
 
-  private createToolHandlers(): Record<ToolName, ToolHandler> {
+  private createToolHandlers(): ToolHandlers {
     const handlers: ToolHandlerMap = {
       ...createMetaToolHandlers({ api: this.api }),
       ...createAuthToolHandlers({ api: this.api }),
@@ -32,16 +32,17 @@ export class PocketBaseMCPServer {
       throw new Error(`Missing tool handlers: ${missing.join(', ')}`);
     }
 
-    return handlers as Record<ToolName, ToolHandler>;
+    return handlers as ToolHandlers;
   }
 
   async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const handler = (this.toolHandlers as Record<string, ToolHandler | undefined>)[toolName];
-    if (!handler) {
+    const definition = findToolDefinition(toolName);
+    if (!definition) {
       throw new ValidationError(`Unknown tool: ${toolName}`);
     }
 
-    return handler(args);
+    const handler = this.toolHandlers[definition.name] as (args: unknown) => Promise<unknown>;
+    return handler(parseToolInput(definition.input, args));
   }
 
   async listResources(): Promise<

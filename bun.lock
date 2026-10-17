@@ -6,6 +6,7 @@
       "name": "@fadlee/pocketbase-mcp",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.0.0",
+        "zod": "^4.2.1",
       },
       "devDependencies": {
         "@types/node": "^22.0.0",

@@ -290,7 +290,7 @@ test('collection schema tools expose concrete field object parameters', () => {
     'cascadeDelete',
   ]);
   assert.deepEqual(updateCollection.inputSchema.properties.fields.items.properties, createCollection.inputSchema.properties.fields.items.properties);
-  assert.equal(updateCollection.inputSchema.properties.data.additionalProperties, true);
+  assert.deepEqual(updateCollection.inputSchema.properties.data.additionalProperties, {});
 });
 
 test('update_collection schema documents MCP field patch support', () => {
@@ -456,7 +456,7 @@ test('validates collection tool arguments', async () => {
   );
   await assert.rejects(
     () => server.callTool('create_collection', { name: 'posts', fields: 'invalid' }),
-    /Invalid parameter: fields must be an array of objects/
+    /Invalid parameter: fields must be an array/
   );
   await assert.rejects(
     () => server.callTool('update_collection', { collection: 'posts' }),
@@ -468,6 +468,10 @@ test('validates collection tool arguments', async () => {
   );
   await assert.rejects(
     () => server.callTool('list_collections', { page: '2' }),
+    /Invalid parameter: page must be a number/
+  );
+  await assert.rejects(
+    () => server.callTool('list_collections', { page: 1.5 }),
     /Invalid parameter: page must be an integer/
   );
 });
@@ -528,7 +532,7 @@ test('validates record tool arguments', async () => {
   const { server } = createServerWithMockRequest();
 
   await assert.rejects(
-    () => server.callTool('list_records', { collection: 'posts', page: '1' }),
+    () => server.callTool('list_records', { collection: 'posts', page: 1.5 }),
     /Invalid parameter: page must be an integer/
   );
   await assert.rejects(
@@ -557,7 +561,7 @@ test('supports MCP resources via server helpers', async () => {
 
   assert.equal(resources[0].uri, 'pocketbase://collection/posts');
   assert.equal(content.mimeType, 'application/json');
-  assert.match(content.text, /"name": "posts"/);
+  assert.equal(JSON.parse(content.text).name, 'posts');
 });
 
 test('validates resource URI format', async () => {
@@ -589,7 +593,7 @@ test('lists resources across all collection pages with encoded URIs', async () =
   );
 
   const content = await server.readResource(resources[1].uri);
-  assert.match(content.text, /"name": "my notes"/);
+  assert.equal(JSON.parse(content.text).name, 'my notes');
 });
 
 test('list_records forwards skipTotal as a query flag', async () => {
@@ -648,4 +652,34 @@ test('validates batch_records arguments', async () => {
     () => server.callTool('batch_records', { requests: [{ action: 'create', collection: 'posts' }] }),
     /Missing required parameter: requests\[0\]\.data/
   );
+});
+
+test('advertised input schemas are plain JSON Schema objects', () => {
+  for (const tool of getToolDefinitions()) {
+    assert.equal(tool.inputSchema.type, 'object', tool.name);
+    assert.equal('$schema' in tool.inputSchema, false, tool.name);
+  }
+
+  const listRecords = getToolDefinitions().find((tool) => tool.name === 'list_records');
+  assert.deepEqual(listRecords.inputSchema.properties.page, { type: 'integer', description: 'Page number (default: 1)' });
+  assert.deepEqual(listRecords.inputSchema.required, ['collection']);
+});
+
+test('reports every invalid parameter with its nested path', async () => {
+  const { server } = createServerWithMockRequest();
+
+  await assert.rejects(
+    () => server.callTool('create_collection', { name: 'x', type: 'zz', fields: [{ name: 'a' }] }),
+    /Invalid parameter: type must be one of base, auth, view; Missing required parameter: fields\[0\]\.type/
+  );
+});
+
+test('accepts datetime strings for date field min/max', async () => {
+  const { server, calls } = createServerWithMockRequest();
+
+  await server.callTool('create_collection', {
+    name: 'events',
+    fields: [{ name: 'startsAt', type: 'date', min: '2026-01-01 00:00:00.000Z' }],
+  });
+  assert.equal(calls.at(-1).data.fields[0].min, '2026-01-01 00:00:00.000Z');
 });
