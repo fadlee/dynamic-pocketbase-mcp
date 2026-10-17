@@ -36,6 +36,14 @@
   ],
   "author": "fadlee",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fadlee/dynamic-pocketbase-mcp.git"
+  },
+  "homepage": "https://github.com/fadlee/dynamic-pocketbase-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/fadlee/dynamic-pocketbase-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^4.2.1"
